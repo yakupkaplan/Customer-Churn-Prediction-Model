@@ -58,10 +58,6 @@ df.head()
 y = df["Exited"]
 X = df.drop(["Exited"], axis=1)
 
-# summarize class distribution
-counter = Counter(y)
-print(counter) # Counter({0: 7963, 1: 2037})
-
 # Split the dataset into train and test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, stratify=y, random_state=12345)
 print("Shape of X_train: ", X_train.shape, # Shape of X_train:  (8000, 11)
@@ -69,6 +65,9 @@ print("Shape of X_train: ", X_train.shape, # Shape of X_train:  (8000, 11)
       "\nShape of X_test: ", X_test.shape, # Shape of X_test:  (2000, 11)
       "\nShape of y_test: ", y_test.shape) # Shape of y_test:  (2000,)
 
+# summarize class distribution
+counter = Counter(y)
+print(counter) # Counter({0: 7963, 1: 2037})
 
 # Balance training data set
 
@@ -82,13 +81,13 @@ oversample = SMOTE(sampling_strategy=0.5) #
 X_over, y_over = oversample.fit_resample(X_train, y_train)
 
 # summarize class distribution
-print(Counter(y_over))
+print(Counter(y_over)) # Counter({0: 6370, 1: 3185})
 
-print('After OverSampling, the shape of X_train: {}'.format(X_over.shape)) # (12780, 11)
-print('After OverSampling, the shape of y_train: {} \n'.format(y_over.shape)) # (12780,)
+print('After OverSampling, the shape of X_train: {}'.format(X_over.shape)) # (9555, 11)
+print('After OverSampling, the shape of y_train: {} \n'.format(y_over.shape)) # (9555,)
 
-print("After OverSampling, counts of label '1': {}".format(sum(y_over==1))) # 6390
-print("After OverSampling, counts of label '0': {}".format(sum(y_over==0))) # 6390
+print("After OverSampling, counts of label '1': {}".format(sum(y_over==1))) # 3185
+print("After OverSampling, counts of label '0': {}".format(sum(y_over==0))) # 6370
 
 
 # MODELING
@@ -286,37 +285,40 @@ base_models = [('LogisticRegression', logreg),
                ("NGBoost", NGBClassifier(verbose=False))]
 
 evaluate_classification_model_holdout(base_models)
-# ################ Train and test results for the model: ################
-#                 models  accuracy_train  accuracy_test  f1_score_test  \
-# 0   LogisticRegression        0.813125         0.8090       0.305455
-# 1          Naive Bayes        0.784500         0.7805       0.113131
-# 2                  KNN        0.875375         0.8385       0.500773
-# 3                  SVM        0.863375         0.8535       0.510851
-# 4                  ANN        0.866375         0.8580       0.582353
-# 5                 CART        1.000000         0.7950       0.516509
-# 6          BaggedTrees        0.983750         0.8515       0.571429
-# 7                   RF        0.999875         0.8610       0.574924
-# 8             AdaBoost        0.857875         0.8640       0.595238
-# 9                  GBM        0.873750         0.8605       0.567442
-# 10             XGBoost        0.950875         0.8650       0.612069
-# 11            LightGBM        0.912750         0.8650       0.608696
-# 12            CatBoost        0.910000         0.8650       0.600592
-# 13             NGBoost        0.862000         0.8560       0.532468
-#     precision_test  recall_test
-# 0         0.587413     0.206388
-# 1         0.318182     0.068796
-# 2         0.675000     0.398034
-# 3         0.796875     0.375921
-# 4         0.725275     0.486486
-# 5         0.496599     0.538084
-# 6         0.692308     0.486486
-# 7         0.761134     0.461916
-# 8         0.754717     0.491400
-# 9         0.768908     0.449631
-# 10        0.737024     0.523342
-# 11        0.742049     0.515971
-# 12        0.754647     0.498771
-# 13        0.784689     0.402948
+'''
+################ Train and test results for the model: ################
+                models  accuracy_train  accuracy_test  f1_score_test  \
+0   LogisticRegression        0.819250         0.8160       0.349823   
+1          Naive Bayes        0.790250         0.7860       0.201493   
+2                  KNN        0.875625         0.8350       0.487578   
+3                  SVM        0.861750         0.8535       0.507563   
+4                  ANN        0.866500         0.8575       0.573991   
+5                 CART        1.000000         0.7935       0.508918   
+6          BaggedTrees        0.986250         0.8445       0.544656   
+7                   RF        1.000000         0.8595       0.572298   
+8             AdaBoost        0.856875         0.8595       0.576169   
+9                  GBM        0.874375         0.8585       0.561240   
+10             XGBoost        0.956500         0.8580       0.594286   
+11            LightGBM        0.913375         0.8620       0.596491   
+12            CatBoost        0.910500         0.8660       0.603550   
+13             NGBoost        0.861625         0.8545       0.529887   
+    precision_test  recall_test  
+0         0.622642     0.243243  
+1         0.418605     0.132678  
+2         0.662447     0.385749  
+3         0.803191     0.371007  
+4         0.732824     0.471744  
+5         0.493088     0.525799  
+6         0.673913     0.457002  
+7         0.752000     0.461916  
+8         0.746094     0.469287  
+9         0.760504     0.444717  
+10        0.709898     0.511057  
+11        0.736462     0.501229  
+12        0.758364     0.501229  
+13        0.773585     0.402948  
+
+'''
 
 
 
@@ -324,11 +326,26 @@ evaluate_classification_model_holdout(base_models)
 
 '''
 Models to be tuned:
+    - LogisticRegression
     - RandomForestClassifier
     - XGBClassifier
     - LightGBMClassifier
     - CatBoostClassifier     
 '''
+
+# LogisticRegression
+
+df["Exited"].value_counts()
+
+logreg_sensitive = make_pipeline(StandardScaler(), LogisticRegression(solver='liblinear', class_weight={0: 0.2037, 1: 0.7963}))
+logreg_sensitive.fit(X_train, y_train)
+yhat_sensitive = logreg_sensitive.predict(X_test)
+
+print('F-Measure: %.3f' % f1_score(y_test, yhat_sensitive)) # 0.515
+print('Accuracy: %.3f' % accuracy_score(y_test, yhat_sensitive)) # 0.718
+print('Precision: %.3f' % precision_score(y_test, yhat_sensitive)) # 0.396
+print('Recall: %.3f' % recall_score(y_test, yhat_sensitive)) # 0.737
+print('ROC AUC Score: %.3f' % roc_auc_score(y_test, yhat_sensitive)) # 0.725
 
 
 # RandomForestClassifier
@@ -345,7 +362,7 @@ rf_cv_model.best_params_ # {'max_depth': 8, 'max_features': 7, 'min_samples_spli
 # Final Model
 rf_tuned = RandomForestClassifier(**rf_cv_model.best_params_).fit(X_train, y_train)
 y_pred = rf_tuned.predict(X_test)
-accuracy_score(y_test, y_pred) # 0.8535
+accuracy_score(y_test, y_pred) # 0.86
 plot_classification_report_yb(rf_tuned)
 
 # Visualization of Results --> Feature Importances
