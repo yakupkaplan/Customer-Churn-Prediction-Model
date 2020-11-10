@@ -97,7 +97,7 @@ df.describe([0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99]).T
 df.isnull().values.any()
 df.isnull().sum().sort_values(ascending=False)
 
-# Drop 'CustomerId' column, because we do not need it for our analysis.
+# Drop 'CustomerId' and 'Surname' column, because we do not need them for our model.
 df.drop(['CustomerId', 'Surname'], axis=1, inplace=True)
 
 # Let's define numerical and categorical features
@@ -106,7 +106,7 @@ df.columns
 num_cols = [col for col in df.columns if df[col].dtypes != "O" and col not in ['Exited']]
 print('Number of Numerical Variables : ', len(num_cols), '-->', num_cols) # ['CreditScore', 'Age', 'Tenure', 'Balance', 'NumOfProducts', 'HasCrCard', 'IsActiveMember', 'EstimatedSalary']
 
-cat_cols = [col for col in df.columns if df[col].dtype == "O"] # ['Surname', 'Geography', 'Gender']
+cat_cols = [col for col in df.columns if df[col].dtype == "O"] # ['Geography', 'Gender']
 print('Number of Categorical Variables : ', len(cat_cols), '-->', cat_cols)
 
 # After analysis, we redefined categorical and numerical variables
@@ -125,41 +125,16 @@ df[cat_cols].nunique()
 
 # Function that catches categorical variables, prints the distribution and ratio of unique values and finally creates a countplot
 def cats_summary1(data, target):
-    cat_names = [col for col in data.columns if len(data[col].unique()) < 10]
+    cat_names = [col for col in data.columns if len(data[col].unique()) < 10 and col not in ['Exited']]
     for col in cat_names:
         print(pd.DataFrame({col: data[col].value_counts(),
                             "Ratio": 100 * data[col].value_counts() / len(data),
                             "TARGET_MEAN": data.groupby(col)[target].mean()}), end="\n\n\n")
-        sns.countplot(x=col, data=data)
+        sns.countplot(x=col, hue='Exited', data=data)
         plt.show()
 
 
 cats_summary1(df, 'Exited')
-
-
-# Function takes dataframe, categorical columns and if required number of classes (default value = 10).
-# Then, it prints the distribution and ratio of unique values for the variables, which have less than 10 (number of classes) unique values.
-# Afterwards, it reports categorical variables it described, how many numerical variables, but seem categorical we have and finally report these variables.
-def cats_summary2(data, categorical_cols, target, number_of_classes=10):
-    var_count = 0  # reporting how many categorical variables are there?
-    vars_more_classes = []  # save the variables that have classes more than a number that we determined
-
-    for var in data.columns:
-        if var in categorical_cols:
-            if len(list(data[var].unique())) <= number_of_classes:  # select according to number of classes
-                print(pd.DataFrame({var: data[var].value_counts(),
-                                    "Ratio": 100 * data[var].value_counts() / len(data),
-                                    "TARGET_MEAN": data.groupby(var)[target].mean()}), end="\n\n\n")
-                var_count += 1
-            else:
-                vars_more_classes.append(data[var].name)
-    print('%d categorical variables have been described' % var_count, end="\n\n")
-    print('There are', len(vars_more_classes), "variables have more than", number_of_classes, "classes", end="\n\n")
-    print('Variable names have more than %d classes:' % number_of_classes, end="\n\n")
-    print(vars_more_classes)
-
-
-cats_summary2(df, cat_cols, 'Exited')
 
 
 ## NUMERICAL VARIABLES ANALYSIS
@@ -216,8 +191,8 @@ plt.show()
 
 # Function to calculate outlier thresholds
 def outlier_thresholds(dataframe, variable):
-    quartile1 = dataframe[variable].quantile(0.05)
-    quartile3 = dataframe[variable].quantile(0.95)
+    quartile1 = dataframe[variable].quantile(0.25)
+    quartile3 = dataframe[variable].quantile(0.75)
     interquantile_range = quartile3 - quartile1
     up_limit = quartile3 + 1.5 * interquantile_range
     low_limit = quartile1 - 1.5 * interquantile_range
@@ -246,13 +221,16 @@ def replace_with_thresholds_with_lambda(dataframe, variable):
 
 
 has_outliers(df, num_cols)
-df['NumOfProducts'].value_counts()
+# df['NumOfProducts'].value_counts()
 # NumOfProducts : 60 --> These are the values with 4 Products. We do not remove this whole class. It can have valuable information for us.
 
 
-# # Assign outliers thresholds values for all the numerical variables
-# for col in df.columns:
-#     replace_with_thresholds_with_lambda(df, col)
+# Assign outliers thresholds values for all the numerical variables
+for col in num_cols:
+    replace_with_thresholds_with_lambda(df, col)
+
+# Check for outlier , again.
+has_outliers(df, num_cols)
 
 
 ## MISSING VALUES ANALYSIS
