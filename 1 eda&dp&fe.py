@@ -18,7 +18,6 @@ Variables:
     Exited: Churn or not? (0 = No, 1 = Yes)
 
 Steps for Exploratory Data Analysis, Data Visualization, Data Preprocessing and Feature Engineering:
-    ??? SMOTE --> Imbalanced data
     - GENERAL / GENERAL OVERVIEW / GENERAL PICTURE
     - NUMERICAL VARIABLE ANALYSIS
         describe with quantiles to see whether there are extraordinary values or not
@@ -58,28 +57,31 @@ from lightgbm import LGBMClassifier
 from catboost import CatBoostClassifier
 from ngboost import NGBClassifier
 
-import os
-import pickle
-
 from sklearn.metrics import accuracy_score, roc_auc_score, roc_curve, classification_report
 from sklearn.model_selection import KFold
 from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
 from sklearn import preprocessing
+from sklearn.exceptions import ConvergenceWarning
 
+import pickle
 import warnings
 warnings.simplefilter(action="ignore")
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
+warnings.simplefilter("ignore", category=ConvergenceWarning)
 
 #%config InlineBackend.figure_format = 'retina'
 
 # to display all columns and rows:
 pd.set_option('display.max_columns', None); pd.set_option('display.max_rows', None);
 
+# Import functions from functions.py.
+import functions as fn
+
 
 # Load the dataset
-churn = pd.read_csv("datasets/churn.csv", index_col=0)
+churn = pd.read_csv(r"C:\Users\yakup\PycharmProjects\dsmlbc\datasets\churn.csv", index_col=0)
 df = churn.copy()
 df.head()
 
@@ -122,19 +124,8 @@ df[cat_cols].nunique()
 
 ## CATEGORICAL VARIABLES ANALYSIS
 
-
-# Function that catches categorical variables, prints the distribution and ratio of unique values and finally creates a countplot
-def cats_summary1(data, target):
-    cat_names = [col for col in data.columns if len(data[col].unique()) < 10 and col not in ['Exited']]
-    for col in cat_names:
-        print(pd.DataFrame({col: data[col].value_counts(),
-                            "Ratio": 100 * data[col].value_counts() / len(data),
-                            "TARGET_MEAN": data.groupby(col)[target].mean()}), end="\n\n\n")
-        sns.countplot(x=col, hue='Exited', data=data)
-        plt.show()
-
-
-cats_summary1(df, 'Exited')
+# Show summary for categorical variables
+fn.cats_summary1(df, 'Exited')
 
 
 ## NUMERICAL VARIABLES ANALYSIS
@@ -143,21 +134,8 @@ cats_summary1(df, 'Exited')
 df.hist(bins=20, figsize=(15, 15), color='r');
 plt.show()
 
-
-# Function to plot histograms for numerical variables
-def hist_for_nums(data, numeric_cols):
-    col_counter = 0
-    data = data.copy()
-    for col in numeric_cols:
-        data[col].hist(bins=20)
-        plt.xlabel(col)
-        plt.title(col)
-        plt.show()
-        col_counter += 1
-    print(col_counter, "variables have been plotted")
-
-
-hist_for_nums(df, num_cols)
+# Show histogtams for numerical variables
+fn.hist_for_nums(df, num_cols)
 
 
 ## TARGET ANALYSIS
@@ -188,49 +166,15 @@ plt.show()
 
 ## OUTLIER ANALYSIS
 
-
-# Function to calculate outlier thresholds
-def outlier_thresholds(dataframe, variable):
-    quartile1 = dataframe[variable].quantile(0.25)
-    quartile3 = dataframe[variable].quantile(0.75)
-    interquantile_range = quartile3 - quartile1
-    up_limit = quartile3 + 1.5 * interquantile_range
-    low_limit = quartile1 - 1.5 * interquantile_range
-    return low_limit, up_limit
-
-
-# Function to report variables with outliers and return the names of the variables with outliers with a list
-def has_outliers(dataframe, num_col_names, plot=False):
-    variable_names = []
-    for col in num_col_names:
-        low_limit, up_limit = outlier_thresholds(dataframe, col)
-        if dataframe[(dataframe[col] > up_limit) | (dataframe[col] < low_limit)].any(axis=None):
-            number_of_outliers = dataframe[(dataframe[col] > up_limit) | (dataframe[col] < low_limit)].shape[0]
-            print(col, ":", number_of_outliers)
-            variable_names.append(col)
-            if plot:
-                sns.boxplot(x=dataframe[col])
-                plt.show()
-    return variable_names
-
-
-# Function to reassign up/low limits to the ones above/below up/low limits by using apply and lambda method
-def replace_with_thresholds_with_lambda(dataframe, variable):
-    low_limit, up_limit = outlier_thresholds(dataframe, variable)
-    dataframe[variable] = dataframe[variable].apply(lambda x: up_limit if x > up_limit else (low_limit if x < low_limit else x))
-
-
-has_outliers(df, num_cols)
-# df['NumOfProducts'].value_counts()
-# NumOfProducts : 60 --> These are the values with 4 Products. We do not remove this whole class. It can have valuable information for us.
-
+# See, if we have any outlier in the dataset
+fn.has_outliers(df, num_cols)
 
 # Assign outliers thresholds values for all the numerical variables
 for col in num_cols:
-    replace_with_thresholds_with_lambda(df, col)
+    fn.replace_with_thresholds_with_lambda(df, col)
 
 # Check for outlier , again.
-has_outliers(df, num_cols)
+fn.has_outliers(df, num_cols)
 
 
 ## MISSING VALUES ANALYSIS
@@ -242,7 +186,81 @@ df.isnull().sum().sort_values(ascending=False) # There are no missing values in 
 
 ## FEATURE CREATION
 
-# Create
+# Create a feature that show age categories  18-30 --> 1, 30-40 --> 2, 40-50 --> 3, 50-60 --> 4, 60-92 --> 5
+df['Age'].describe()
+df['AgeRanges'] = pd.cut(x=df['Age'], bins=[0, 30, 40, 50, 60, 92], labels=[1, 2, 3, 4, 5])
+cat_cols.append('AgeRanges')
+# See the results for the new feature
+df.groupby(["Exited", "AgeRanges"]).describe()
+df[['AgeRanges']].value_counts()
+df.groupby(["AgeRanges"]).agg({"Exited": [np.mean, np.size]}) # Super!
+
+# Create a feature that shows credit score ranges
+df['CreditScore'].describe()
+df['CreditScoreRanges'] = pd.cut(x=df['CreditScore'], bins=[300, 500, 601, 661, 781, 851], labels=[1, 2, 3, 4, 5])
+cat_cols.append('CreditScoreRanges')
+# See the results for the new feature
+df.groupby(["Exited", "CreditScoreRanges"]).describe()
+df[['CreditScoreRanges']].value_counts()
+df.groupby(["CreditScoreRanges"]).agg({"Exited": [np.mean, np.size]}) # Super!
+
+# Create a feature that shows Tenure/NumOfProducts
+df["Tenure/NumOfProducts"] = df["Tenure"]/df["NumOfProducts"]
+num_cols.append('Tenure/NumOfProducts')
+# See the results for the new feature
+sns.boxplot(x='Exited', y='Tenure/NumOfProducts', data=df)
+plt.show()
+
+# Create a feature that shows EstimatedSalary/Age
+df["ESalary/Age"] = df["EstimatedSalary"]/(df["Age"])
+num_cols.append('ESalary/Age')
+# See the results for the new feature
+sns.boxplot(x='Exited', y='ESalary/Age', data=df)
+plt.show()
+
+# Create a feature that shows Tenure/Age
+df["Tenure/Age"] = df["Tenure"]/(df["Age"])
+num_cols.append('Tenure/Age')
+# See the results for the new feature
+sns.boxplot(x='Exited', y='Tenure/Age', data=df)
+plt.show()
+
+# Create a feature that shows Balance/ESalary
+df["Balance/ESalary"] = df["Balance"]/(df["EstimatedSalary"])
+num_cols.append('Balance/ESalary')
+# See the results for the new feature
+sns.boxplot(x='Exited', y='Balance/ESalary', data=df)
+plt.show()
+
+# Create a feature that shows ESalary/Tenure
+df["ESalary/Tenure"] = df["EstimatedSalary"]/(df["Tenure"]+1)
+num_cols.append('ESalary/Tenure')
+# See the results for the new feature
+sns.boxplot(x='Exited', y='ESalary/Tenure', data=df)
+plt.show()
+
+# # Create a feature that shows ESalary/Tenure
+# df["ESalary/CreditScoreranges"] = df["EstimatedSalary"]/(df["CreditScoreRanges"])
+# # See the results for the new feature
+# sns.boxplot(x='Exited', y='ESalary/CreditScoreranges', data=df)
+# plt.show()
+
+# All of those below 405 are churned (20 values), they remained on the edge like outlier, we did not throw them, we created a new variable.
+df["SmallerThan405"] = df['CreditScore'].apply(lambda x: 1 if x < 405 else 0)
+cat_cols.append('SmallerThan405')
+df["SmallerThan405"].value_counts()
+# See the results for the new feature
+df.groupby(["SmallerThan405"]).agg({"Exited": [np.mean, np.size]}) # Super!
+
+# Create a feature that shows whther 'Balance' < 0 or not.
+df['HasBalance'] = df['Balance'].apply(lambda x: 1 if x > 0 else 0)
+cat_cols.append('HasBalance')
+df['HasBalance'].value_counts()
+# See the results for the new feature
+df.groupby(["HasBalance"]).agg({"Exited": [np.mean, np.size]}) # Super!
+
+# Drop Features that we will not ues anymore
+df.drop(['CreditScore', 'Balance'], axis=1, inplace=True)
 
 
 ## LABEL AND ONE HOT ENCODING
@@ -250,87 +268,20 @@ df.isnull().sum().sort_values(ascending=False) # There are no missing values in 
 # Catch numerical variables
 cat_cols
 
-
-# Define a function to apply one hot encoding to categorical variables.
-def one_hot_encoder(dataframe, categorical_cols, nan_as_category=True):
-    original_columns = list(dataframe.columns)
-    dataframe = pd.get_dummies(dataframe, columns=categorical_cols, dummy_na=False, drop_first=True)
-    new_columns = [c for c in dataframe.columns if c not in original_columns]
-    return dataframe, new_columns
-
-
-df, new_cols_ohe = one_hot_encoder(df, cat_cols)
+df, new_cols_ohe = fn.one_hot_encoder(df, cat_cols)
 df.head()
 len(new_cols_ohe)
 
 df.info()
 
+# STANDARDIZATION
+
+# Standardization will be implemented in the modeling phase for distance based algoritms.
+
+
 # Export the dataset for later use by modeling
 df.to_csv(r'C:\Users\yakup\PycharmProjects\dsmlbc\projects\customer_churn_prediction\churn_prepared.csv', index=False)
 
-'''
-# STANDARDIZATION
 
-df.head()
-
-# Catch numerical variables
-num_cols = [col for col in df.columns if df[col].dtypes != 'O' and col not in ["Outcome"]]
-len(num_cols)
-
-# MinMaxScaler
-
-df_minmax_scaled = df.copy()
-
-from sklearn.preprocessing import MinMaxScaler
-transformer = MinMaxScaler()
-df_minmax_scaled[num_cols] = transformer.fit_transform(df_minmax_scaled[num_cols])  # default value is between 0 and 1
-
-df_minmax_scaled[num_cols].describe().T
-len(num_cols)
-
-# StandardScaler
-
-df_std_scaled = df.copy()
-
-from sklearn.preprocessing import StandardScaler
-transformer = StandardScaler()
-df_std_scaled[num_cols] = transformer.fit_transform(df_std_scaled[num_cols])
-
-df_std_scaled[num_cols].describe().T
-len(num_cols)
-
-# RobustScaler
-
-df_robust_scaled = df.copy()
-
-from sklearn.preprocessing import RobustScaler
-transformer = RobustScaler()
-df_robust_scaled[num_cols] = transformer.fit_transform(df_robust_scaled[num_cols])
-
-df_robust_scaled[num_cols].describe().T
-len(num_cols)
-
-# Check before modeling for missing values and outliers in the dataset
-# df.isnull().sum().sum()
-# has_outliers(df, num_cols)
-df_minmax_scaled.isnull().sum().sum()
-has_outliers(df_minmax_scaled, num_cols)
-
-df_std_scaled.isnull().sum().sum()
-has_outliers(df_std_scaled, num_cols)
-
-df_robust_scaled.isnull().sum().sum()
-has_outliers(df_robust_scaled, num_cols)
-
-# Last look at the dataset
-df.head()
-df.info()
-
-# Export the dataset for later use by modeling
-#df.to_csv(r'C:\Users\yakup\PycharmProjects\dsmlbc\projects\customer_churn_prediction\diabetes_prepared.csv')
-df_minmax_scaled.to_csv(r'C:\Users\yakup\PycharmProjects\dsmlbc\projects\customer_churn_prediction\churn_prepared_minmaxscaled.csv', index=False)
-df_std_scaled.to_csv(r'C:\Users\yakup\PycharmProjects\dsmlbc\projects\customer_churn_prediction\churn_prepared_stdscaled.csv', index=False)
-df_robust_scaled.to_csv(r'C:\Users\yakup\PycharmProjects\dsmlbc\projects\customer_churn_prediction\churn_prepared_robustscaled.csv', index=False)
-'''
 
 
