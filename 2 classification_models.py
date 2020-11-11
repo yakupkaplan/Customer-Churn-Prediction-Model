@@ -26,7 +26,7 @@ Steps to follow:
                        BaggingClassifier, RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier,
                        XGBClassifier, LGBMClassifier, CatBoostClassifier, NGBClassifier
     - Model Evaluation
-    - Model Tuning
+    - Effect of Scaling on the Model Performance
     - Model Results
 '''
 
@@ -57,6 +57,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score, roc_curve, classifica
 from sklearn.model_selection import KFold
 from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score, StratifiedKFold
 from sklearn import preprocessing
+from sklearn.exceptions import ConvergenceWarning
 
 from yellowbrick.classifier import ConfusionMatrix, ClassificationReport, ROCAUC, ClassPredictionError
 from yellowbrick.model_selection import LearningCurve, FeatureImportances
@@ -65,11 +66,15 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
+warnings.simplefilter("ignore", category=ConvergenceWarning)
 
 #%config InlineBackend.figure_format = 'retina'
 
 # to display all columns and rows:
 pd.set_option('display.max_columns', None); pd.set_option('display.max_rows', None);
+
+# Import functions from functions.py.
+import functions as fn
 
 
 # Load the dataset
@@ -93,167 +98,12 @@ df.isnull().sum().sort_values(ascending=False)
 
 # MODELING
 
-
 # Define dependent and independent variables
 y = df["Exited"]
 X = df.drop(["Exited"], axis=1)
 
 # Split the dataset into train and test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=12345)
-
-
-# Evaluate each model in turn by looking at train and test errors and scores
-def evaluate_classification_model_holdout(models):
-
-    # Define lists to track names and results for models
-    names = []
-    train_accuracy_results = []
-    test_accuracy_results = []
-    test_precision_scores = []
-    test_recall_scores = []
-    test_f1_scores = []
-    supports = []
-
-    print('################ Accuracy scores for test set for the models: ################\n')
-    for name, model in models:
-        model.fit(X_train, y_train)
-        y_train_pred = model.predict(X_train)
-        y_test_pred = model.predict(X_test)
-
-        train_accuracy_result = accuracy_score(y_train, y_train_pred)
-        test_accuracy_result = accuracy_score(y_test, y_test_pred)
-        train_accuracy_results.append(train_accuracy_result)
-        test_accuracy_results.append(test_accuracy_result)
-        test_precision_score = precision_score(y_test, y_test_pred)
-        test_precision_scores.append(test_precision_score)
-        test_recall_score = recall_score(y_test, y_test_pred)
-        test_recall_scores.append(test_recall_score)
-        test_f1_score = f1_score(y_test, y_test_pred)
-        test_f1_scores.append(test_f1_score)
-
-        names.append(name)
-        msg = "%s: %f" % (name, test_accuracy_result)
-        print(msg)
-
-    print('\n################ Train and test results for the model: ################\n')
-    data_result = pd.DataFrame({'models': names,
-                                'accuracy_train': train_accuracy_results,
-                                'accuracy_test': test_accuracy_results,
-                                'f1_score_test': test_f1_scores,
-                                'precision_test': test_precision_scores,
-                                'recall_test': test_recall_scores})
-    data_result.set_index('models')
-    print(data_result)
-
-    # Plot the results
-    plt.figure(figsize=(15, 12))
-    sns.barplot(x='accuracy_test', y='models', data=data_result.sort_values(by="accuracy_test", ascending=False), color="r")
-    plt.xlabel('Accuracy Scores')
-    plt.ylabel('Models')
-    plt.title('Accuracy Scores For Test Set')
-    plt.show()
-
-
-# Define a function to plot feature_importances
-def plot_feature_importances(tuned_model):
-    feature_importances = pd.DataFrame({'Importance': tuned_model.feature_importances_ * 100, 'Feature': X_train.columns})
-    plt.figure()
-    sns.barplot(x="Importance", y="Feature", data=feature_importances.sort_values(by="Importance", ascending=False))
-    plt.title('Feature Importance - ')
-    plt.show()
-
-
-# Function to plot confusion_matrix
-def plot_confusion_matrix(model, X_test, y_test, normalize=True):
-    plot_confusion_matrix(model, X_test, y_test, cmap=plt.cm.Blues, normalize=normalize)
-    plt.show()
-
-
-# Function to plot confusion_matrix
-def plot_confusion_matrix_yb(model):
-    model_cm = ConfusionMatrix(model, percent=True, classes=['not_churn', 'churn'], cmap='Blues')
-    model_cm.fit(X_train, y_train)
-    model_cm.score(X_test, y_test)
-    model_cm.show();
-
-
-# Function to plot classification_report by using yellowbrick
-def plot_classification_report_yb(model):
-    visualizer = ClassificationReport(model, classes=['not_churn', 'churn'], support=True, cmap='Blues')
-    visualizer.fit(X_train, y_train)  # Fit the visualizer and the model
-    visualizer.score(X_test, y_test)  # Evaluate the model on the test data
-    visualizer.show();
-
-
-# Funtion to plot ROC-AUC Curve
-def plot_roc_auc_curve(model):
-    model_roc_auc = roc_auc_score(y_test, model.predict(X_test))
-    fpr, tpr, thresholds = roc_curve(y_test, model.predict_proba(X_test)[:, 1])
-    plt.figure()
-    plt.plot(fpr, tpr, label='AUC (area = %0.2f)' % model_roc_auc)
-    plt.plot([0, 1], [0, 1], 'r--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver operating characteristic')
-    plt.legend(loc="lower right")
-    plt.show()
-
-
-# Funtion to plot ROC-AUC Curve by using yellowbrick
-def plot_roc_auc_curve_yb(model):
-    visualizer = ROCAUC(model, classes=['not_churn', 'churn'])
-    visualizer.fit(X_train, y_train)  # Fit the training data to the visualizer
-    visualizer.score(X_test, y_test)  # Evaluate the model on the test data
-    visualizer.show();  # Finalize and show the figure
-
-
-# Function to plot prediction errors
-def plot_class_prediction_error_yb(model):
-    # Instantiate the classification model and visualizer
-    visualizer = ClassPredictionError(model, classes=['not_churn', 'churn'])
-    # Fit the training data to the visualizer
-    visualizer.fit(X_train, y_train)
-    # Evaluate the model on the test data
-    visualizer.score(X_test, y_test)
-    # Draw visualization
-    visualizer.show();
-
-
-# Function to plot learning curves
-def plot_learning_curve(model_tuned):
-    # Create the learning curve visualizer
-    cv = StratifiedKFold(n_splits=12)
-    sizes = np.linspace(0.3, 1.0, 10)
-    # Instantiate the classification model and visualizer
-    visualizer = LearningCurve(model_tuned, cv=cv, scoring='accuracy', train_sizes=sizes, n_jobs=4)
-    visualizer.fit(X, y)  # Fit the data to the visualizer
-    visualizer.show()  # Finalize and render the figure
-
-
-# Function to report results quickly
-def report_results_quickly(model):
-    fig, axes = plt.subplots(2, 2)
-    model = model
-    visualgrid = [FeatureImportances(model, ax=axes[0][0]),
-                  ConfusionMatrix(model, ax=axes[0][1]),
-                  ClassificationReport(model, ax=axes[1][0]),
-                  ROCAUC(model, ax=axes[1][1])]
-    for viz in visualgrid:
-        viz.fit(X_train, y_train)
-        viz.score(X_test, y_test)
-        viz.finalize()
-    plt.show()
-
-
-# Function to plot all the results
-def plot_results(model):
-    plot_confusion_matrix_yb(model)
-    plot_classification_report_yb(model)
-    plot_roc_auc_curve_yb(model)
-    plot_class_prediction_error_yb(model)
-
 
 # See the results for base models
 base_models = [('LogisticRegression', LogisticRegression()),
@@ -271,33 +121,35 @@ base_models = [('LogisticRegression', LogisticRegression()),
                ("CatBoost", CatBoostClassifier(verbose=False)),
                ("NGBoost", NGBClassifier(verbose=False))]
 
-evaluate_classification_model_holdout(base_models)
+fn.evaluate_classification_model_holdout(base_models, X_train, X_test, y_train, y_test)
 
 # Take a look at the confusion matrix for clearer view of the results.
 for name, model in base_models:
     print(model)
-    plot_classification_report_yb(model)
+    fn.plot_classification_report_yb(model, X_train, X_test, y_train, y_test)
 
 
-# We want to the effect of scaling on the dataset.
+# Effect of Scaling on the Model Performance
+
+# We want to see the effect of scaling on the dataset.
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import RobustScaler, StandardScaler, MinMaxScaler
 
 # LogisticRegression with make_pipeline
 logreg = make_pipeline(StandardScaler(), LogisticRegression())
-evaluate_classification_model_holdout([('LogisticRegression', logreg)]) # 0.81 instead of  0.790667
+fn.evaluate_classification_model_holdout([('LogisticRegression', logreg)], X_train, X_test, y_train, y_test) # 0.81 instead of  0.790667
 
 # KNN with make_pipeline
 knn = make_pipeline(RobustScaler(), KNeighborsClassifier())
-evaluate_classification_model_holdout([('KNN', knn)]) # .839333 instead of 0.764667
+fn.evaluate_classification_model_holdout([('KNN', knn)], X_train, X_test, y_train, y_test) # .839333 instead of 0.764667
 
 # SVC with make_pipeline
 svc = make_pipeline(RobustScaler(), SVC())
-evaluate_classification_model_holdout([('SVM', svc)]) # 0.855333 instead of 0.792667
+fn.evaluate_classification_model_holdout([('SVM', svc)], X_train, X_test, y_train, y_test) # 0.855333 instead of 0.792667
 
 # ANN with make_pipeline
 ann = make_pipeline(MinMaxScaler(), MLPClassifier())
-evaluate_classification_model_holdout([('ANN', ann)]) # 0.86 instead of 0.790667
+fn.evaluate_classification_model_holdout([('ANN', ann)], X_train, X_test, y_train, y_test) # 0.86 instead of 0.790667
 
 # See the results for base models after scaling, again.
 
@@ -316,7 +168,7 @@ base_models = [('LogisticRegression', logreg),
                ("CatBoost", CatBoostClassifier(verbose=False)),
                ("NGBoost", NGBClassifier(verbose=False))]
 
-evaluate_classification_model_holdout(base_models)
+fn.evaluate_classification_model_holdout(base_models, X_train, X_test, y_train, y_test)
 
 # ################ Train and test results for the model: ################
 #                 models  accuracy_train  accuracy_test  precision_test  \
