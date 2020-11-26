@@ -6,7 +6,7 @@ __Problem__
 - The aim is to predict whether a bank's customers leave the bank or not.
 - The situation that defines the customer churn is the customer closing his bank account.
 
-__Data Set Stor:__
+__Data Set Story__
 
 It consists of 10000 observations and 12 variables.
 Independent variables contain information about customers.
@@ -36,5 +36,7 @@ __Steps for Exploratory Data Analysis, Data Visualization, Data Preprocessing an
 - Label and One Hot Encoding
 - Standardization
 - Saving the Dataset
+
+__There is also exercise with Apache PySpark. You may see the differences between pandas and pyspark operations.__
     
     
